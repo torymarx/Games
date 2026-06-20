@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blink Catch</title>
+  <style>
+    :root {
+      --bg1:#0b1020; --bg2:#141936; --panel:rgba(14,18,34,.74); --text:#f4f7ff;
+      --muted:#aab3d7; --accent:#7cf7d4; --accent2:#7aa8ff; --danger:#ff7b93;
+      --shadow:0 24px 70px rgba(0,0,0,.38);
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{
+      margin:0; color:var(--text); overflow:hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(122,168,255,.18), transparent 33%),
+        radial-gradient(circle at bottom right, rgba(124,247,212,.12), transparent 30%),
+        linear-gradient(160deg,var(--bg1),var(--bg2));
+    }
+    .wrap{height:100%;display:grid;place-items:center;padding:24px}
+    .shell{
+      width:min(920px,100%); height:min(680px,calc(100vh - 48px));
+      border-radius:28px; border:1px solid rgba(255,255,255,.1);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      box-shadow:var(--shadow); backdrop-filter:blur(12px); position:relative; overflow:hidden;
+    }
+    .hud{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;position:relative;z-index:3}
+    .brand h1{margin:0;font-size:clamp(22px,3vw,30px);letter-spacing:.02em}
+    .brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{min-width:108px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);text-align:center}
+    .label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.value{display:block;font-size:20px;font-weight:800}
+    .arena{position:absolute;inset:92px 18px 18px;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01))}
+    .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);background-size:48px 48px;opacity:.22;pointer-events:none}
+    .target{
+      position:absolute; width:84px; height:84px; border:0; border-radius:50%; cursor:pointer;
+      transform:translate(-50%,-50%); opacity:0; pointer-events:none; transition:transform .12s ease, opacity .2s ease, width .12s ease, height .12s ease;
+      background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.95), rgba(255,255,255,.35) 18%, rgba(124,247,212,.94) 19%, rgba(122,168,255,.95) 60%, rgba(122,168,255,.24) 68%, rgba(255,255,255,0) 69%), radial-gradient(circle at 50% 50%, rgba(124,247,212,.95), rgba(122,168,255,.92));
+      box-shadow:0 0 0 8px rgba(124,247,212,.1),0 0 28px rgba(124,247,212,.45),0 0 60px rgba(122,168,255,.24)
+    }
+    .target.visible{opacity:1;pointer-events:auto}
+    .target.hit{transform:translate(-50%,-50%) scale(.75)}
+    .target.tiny{width:54px;height:54px}
+    .target.warn{background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.95), rgba(255,255,255,.35) 18%, rgba(255,123,147,.94) 19%, rgba(255,181,88,.95) 60%, rgba(255,123,147,.2) 68%, rgba(255,255,255,0) 69%), radial-gradient(circle at 50% 50%, rgba(255,123,147,.95), rgba(255,181,88,.92));box-shadow:0 0 0 8px rgba(255,123,147,.1),0 0 28px rgba(255,123,147,.45),0 0 60px rgba(255,181,88,.24)}
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(10,12,24,.18), rgba(10,12,24,.56));padding:24px;z-index:4}
+    .card{width:min(520px,100%);padding:28px;border-radius:24px;background:var(--panel);border:1px solid rgba(255,255,255,.1);box-shadow:var(--shadow);text-align:center}
+    .card h2{margin:0 0 10px;font-size:clamp(28px,4vw,42px)}
+    .card p{margin:0 0 18px;color:var(--muted);line-height:1.55}
+    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+    .btn{border:0;border-radius:999px;padding:12px 18px;font-weight:800;cursor:pointer;color:#08111c;background:linear-gradient(135deg,var(--accent),#ccffe9);box-shadow:0 14px 32px rgba(124,247,212,.18)}
+    .btn.secondary{color:var(--text);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);box-shadow:none}
+    .hint{position:absolute;left:20px;bottom:18px;z-index:3;color:var(--muted);font-size:13px;user-select:none;max-width:70ch}
+    .toast{position:absolute;top:92px;left:50%;transform:translateX(-50%);z-index:5;padding:10px 14px;border-radius:999px;color:var(--text);background:rgba(15,18,38,.82);border:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .25s ease;pointer-events:none;white-space:nowrap}
+    .toast.show{opacity:1}
+    .flash{position:absolute;inset:0;background:radial-gradient(circle at center, rgba(124,247,212,.16), transparent 40%);opacity:0;transition:opacity .12s ease;pointer-events:none;z-index:2}.flash.on{opacity:1}
+    @media (max-width:640px){.shell{height:calc(100vh - 20px);border-radius:20px}.arena{inset:88px 12px 12px}.pill{min-width:92px}.hint{font-size:12px;right:14px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="shell" aria-label="Blink Catch game">
+      <header class="hud">
+        <div class="brand">
+          <h1>Blink Catch</h1>
+          <p>작은 빛구슬을 따라다니며 30초를 버티는 아주 단순한 클릭 게임</p>
+        </div>
+        <div class="stats" aria-live="polite">
+          <div class="pill"><span class="label">점수</span><span id="score" class="value">0</span></div>
+          <div class="pill"><span class="label">남은 시간</span><span id="time" class="value">30.0</span></div>
+          <div class="pill"><span class="label">최고 기록</span><span id="best" class="value">0</span></div>
+        </div>
+      </header>
+      <section class="arena" id="arena">
+        <div class="grid"></div>
+        <div class="flash" id="flash"></div>
+        <button id="target" class="target" aria-label="target"></button>
+        <div class="toast" id="toast"></div>
+        <div class="overlay" id="overlay">
+          <div class="card">
+            <h2>지금 시작할까요?</h2>
+            <p>30초 동안 나타나는 구슬을 클릭하세요. 클릭할수록 구슬이 작아지고 더 빨리 도망갑니다.</p>
+            <div class="actions">
+              <button class="btn" id="startBtn">게임 시작</button>
+              <button class="btn secondary" id="resetBestBtn">기록 초기화</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="hint">조작: 마우스로 클릭 / Enter로 시작 또는 재시작 / Esc로 일시정지</div>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const arena = document.getElementById('arena');
+      const target = document.getElementById('target');
+      const overlay = document.getElementById('overlay');
+      const startBtn = document.getElementById('startBtn');
+      const resetBestBtn = document.getElementById('resetBestBtn');
+      const scoreEl = document.getElementById('score');
+      const timeEl = document.getElementById('time');
+      const bestEl = document.getElementById('best');
+      const toast = document.getElementById('toast');
+      const flash = document.getElementById('flash');
+
+      const STORAGE_KEY = 'blinkCatchBestScore';
+      const ROUND_SECONDS = 30;
+      const messages = [
+        '손가락이 먼저 반응하면 이깁니다.',
+        '생각 말고 클릭!',
+        '구슬이 점점 쪼그라듭니다.',
+        '시간 태우기용으로 아주 좋습니다.',
+        '반사신경이 깨어나고 있어요.',
+        '아직도 10초쯤은 금방 갑니다.'
+      ];
+
+      let state = 'idle';
+      let score = 0;
+      let best = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      let remaining = ROUND_SECONDS;
+      let lastTick = 0;
+      let hideTimer = null;
+      let safetyTimer = null;
+      let targetVisible = false;
+      let targetHits = 0;
+
+      function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+      function updateHud(){ scoreEl.textContent = score; timeEl.textContent = remaining.toFixed(1); bestEl.textContent = best; }
+      function setBest(value){ best = value; localStorage.setItem(STORAGE_KEY, String(best)); bestEl.textContent = best; }
+      function showToast(text){ toast.textContent = text; toast.classList.add('show'); clearTimeout(showToast._timer); showToast._timer = setTimeout(() => toast.classList.remove('show'), 1200); }
+      function pulseFlash(){ flash.classList.add('on'); clearTimeout(pulseFlash._timer); pulseFlash._timer = setTimeout(() => flash.classList.remove('on'), 80); }
+      function arenaRect(){ return arena.getBoundingClientRect(); }
+      function randomPosition(size){ const rect = arenaRect(); const padding = Math.max(24, size / 2 + 10); return { x: padding + Math.random() * Math.max(1, rect.width - padding * 2), y: padding + Math.random() * Math.max(1, rect.height - padding * 2) }; }
+      function targetSpeed(){ return clamp(1250 - score * 14, 380, 1250); }
+      function placeTarget({ instant = false } = {}) {
+        const size = target.classList.contains('tiny') ? 54 : 84;
+        const pos = randomPosition(size);
+        target.style.width = `${size}px`;
+        target.style.height = `${size}px`;
+        target.style.left = `${pos.x}px`;
+        target.style.top = `${pos.y}px`;
+        target.style.transitionDuration = instant ? '0ms' : '120ms';
+        target.classList.add('visible');
+        targetVisible = true;
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          if (state === 'playing') {
+            targetVisible = false; target.classList.remove('visible');
+            showToast('놓쳤어요! 다른 위치로 이동합니다.');
+            remaining = Math.max(0, remaining - 1.2); updateHud(); spawnTarget();
+          }
+        }, targetSpeed());
+      }
+      function spawnTarget(){
+        clearTimeout(hideTimer); clearTimeout(safetyTimer);
+        target.classList.toggle('tiny', targetHits >= 5 && targetHits % 5 === 0);
+        target.classList.toggle('warn', targetHits >= 10 && targetHits % 7 === 0);
+        placeTarget();
+        safetyTimer = setTimeout(() => {
+          if (state === 'playing' && targetVisible) { targetVisible = false; target.classList.remove('visible'); spawnTarget(); }
+        }, targetSpeed() + 40);
+      }
+      function endGame(win = false){
+        state = 'ended'; clearTimeout(hideTimer); clearTimeout(safetyTimer); targetVisible = false; target.classList.remove('visible');
+        overlay.innerHTML = `
+          <div class="card">
+            <h2>${win ? '시간 종료!' : '게임 종료'}</h2>
+            <p>최종 점수 <strong>${score}</strong>점. ${score > best ? '새 최고 기록입니다!' : '기록을 한 번 더 노려볼 수 있어요.'}<br/>${messages[score % messages.length]}</p>
+            <div class="actions">
+              <button class="btn" id="restartBtn">다시 하기</button>
+              <button class="btn secondary" id="resetBestBtn2">기록 초기화</button>
+            </div>
+          </div>`;
+        overlay.style.display = 'grid';
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        document.getElementById('resetBestBtn2').addEventListener('click', () => { setBest(0); showToast('최고 기록을 초기화했습니다.'); });
+        if (score > best) setBest(score);
+      }
+      function tick(now){ if(state !== 'playing') return; if(!lastTick) lastTick = now; const dt = (now - lastTick)/1000; lastTick = now; remaining = Math.max(0, remaining - dt); updateHud(); if(remaining <= 0){ endGame(true); return; } requestAnimationFrame(tick); }
+      function startGame(){ state = 'playing'; score = 0; remaining = ROUND_SECONDS; lastTick = 0; targetHits = 0; target.classList.remove('tiny', 'warn'); overlay.style.display = 'none'; overlay.innerHTML = ''; updateHud(); showToast('집중하세요. 구슬은 금방 도망갑니다.'); spawnTarget(); requestAnimationFrame(tick); }
+      function pauseGame(){ if (state !== 'playing') return; state = 'paused'; clearTimeout(hideTimer); clearTimeout(safetyTimer); target.classList.remove('visible'); targetVisible = false; overlay.innerHTML = `<div class="card"><h2>일시정지</h2><p>잠깐 쉬었다가 다시 시작할 수 있어요. 점수는 그대로 유지됩니다.</p><div class="actions"><button class="btn" id="resumeBtn">계속하기</button><button class="btn secondary" id="restartFromPauseBtn">처음부터</button></div></div>`; overlay.style.display = 'grid'; document.getElementById('resumeBtn').addEventListener('click', () => { overlay.style.display = 'none'; state = 'playing'; lastTick = 0; spawnTarget(); requestAnimationFrame(tick); }); document.getElementById('restartFromPauseBtn').addEventListener('click', startGame); }
+      function bounceMessage(){ showToast(messages[Math.floor(Math.random()*messages.length)]); }
+      target.addEventListener('click', () => { if (state !== 'playing') return; score += target.classList.contains('tiny') ? 3 : 1; targetHits += 1; target.classList.add('hit'); pulseFlash(); if (score % 4 === 0) bounceMessage(); clearTimeout(hideTimer); clearTimeout(safetyTimer); setTimeout(() => target.classList.remove('hit'), 90); if (score > best) setBest(score); remaining = Math.min(ROUND_SECONDS, remaining + (score % 6 === 0 ? 0.8 : 0.35)); updateHud(); spawnTarget(); });
+      startBtn.addEventListener('click', startGame);
+      resetBestBtn.addEventListener('click', () => { setBest(0); showToast('최고 기록을 초기화했습니다.'); });
+      window.addEventListener('keydown', (e) => { if (e.key === 'Enter') { if (state === 'idle' || state === 'ended') startGame(); else if (state === 'paused') { overlay.style.display = 'none'; state = 'playing'; lastTick = 0; spawnTarget(); requestAnimationFrame(tick); } } if (e.key === 'Escape') { if (state === 'playing') pauseGame(); else if (state === 'paused') { overlay.style.display = 'none'; state = 'playing'; lastTick = 0; spawnTarget(); requestAnimationFrame(tick); } } });
+      window.addEventListener('resize', () => { if (state === 'playing' || state === 'paused') placeTarget({ instant: true }); });
+      bestEl.textContent = best; updateHud(); showToast('Enter를 누르면 바로 시작할 수 있어요.');
+    })();
+  </script>
+</body>
+</html>
