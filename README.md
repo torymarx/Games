@@ -20,3 +20,7 @@
 
 ## 로컬 확인
 브라우저에서 `index.html`을 직접 열어도 바로 실행됩니다.
+
+
+## Second game
+- Color Tap: `color-tap/`

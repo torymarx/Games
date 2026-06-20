@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Color Tap</title>
+  <style>
+    :root{--bg1:#07111f;--bg2:#1a2346;--panel:rgba(15,20,38,.78);--text:#f4f7ff;--muted:#9fb0d8;--accent:#7cf7d4;--accent2:#7aa8ff;--danger:#ff7b93;--shadow:0 24px 80px rgba(0,0,0,.42)}
+    *{box-sizing:border-box} html,body{height:100%} body{margin:0;overflow:hidden;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at top, rgba(124,247,212,.14), transparent 30%),radial-gradient(circle at bottom right, rgba(122,168,255,.16), transparent 28%),linear-gradient(160deg,var(--bg1),var(--bg2))}
+    .wrap{height:100%;display:grid;place-items:center;padding:24px}
+    .shell{width:min(920px,100%);height:min(680px,calc(100vh - 48px));border-radius:28px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));box-shadow:var(--shadow);backdrop-filter:blur(12px);position:relative;overflow:hidden}
+    .hud{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;position:relative;z-index:3}
+    h1{margin:0;font-size:clamp(22px,3vw,30px)} .brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+    .stats{display:flex;gap:10px;flex-wrap:wrap}.pill{min-width:96px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);text-align:center}.label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.value{display:block;font-size:20px;font-weight:800}
+    .arena{position:absolute;inset:92px 18px 18px;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02)}
+    .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);background-size:48px 48px;opacity:.18}
+    .target{position:absolute;width:96px;height:96px;border:0;border-radius:50%;cursor:pointer;transform:translate(-50%,-50%) scale(1);opacity:0;pointer-events:none;transition:transform .12s ease, opacity .2s ease, width .12s ease, height .12s ease;box-shadow:0 0 0 8px rgba(124,247,212,.08),0 0 28px rgba(124,247,212,.4),0 0 60px rgba(122,168,255,.24)}
+    .target.show{opacity:1;pointer-events:auto}.target.hit{transform:translate(-50%,-50%) scale(.75)}.target.small{width:60px;height:60px}
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(10,12,24,.16), rgba(10,12,24,.58));padding:24px;z-index:4}
+    .card{width:min(520px,100%);padding:28px;border-radius:24px;background:var(--panel);border:1px solid rgba(255,255,255,.1);box-shadow:var(--shadow);text-align:center}
+    .card h2{margin:0 0 10px;font-size:clamp(28px,4vw,42px)} .card p{margin:0 0 18px;color:var(--muted);line-height:1.55}
+    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}.btn{border:0;border-radius:999px;padding:12px 18px;font-weight:800;cursor:pointer;color:#08111c;background:linear-gradient(135deg,var(--accent),#cffff1);box-shadow:0 14px 32px rgba(124,247,212,.18)}.btn.secondary{color:var(--text);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);box-shadow:none}
+    .toast{position:absolute;top:92px;left:50%;transform:translateX(-50%);z-index:5;padding:10px 14px;border-radius:999px;color:var(--text);background:rgba(15,18,38,.82);border:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .25s ease;white-space:nowrap}.toast.show{opacity:1}
+    .hint{position:absolute;left:20px;bottom:18px;color:var(--muted);font-size:13px;max-width:70ch;z-index:3}
+    @media (max-width:640px){.shell{height:calc(100vh - 20px);border-radius:20px}.arena{inset:88px 12px 12px}.hud{padding:16px 14px}.pill{min-width:92px}.hint{right:14px;left:14px;font-size:12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap"><main class="shell" aria-label="Color Tap game">
+    <header class="hud">
+      <div class="brand"><h1>Color Tap</h1><p>색이 바뀌는 원을 누르세요. 30초 동안 최대한 많이 맞추면 됩니다.</p></div>
+      <div class="stats" aria-live="polite"><div class="pill"><span class="label">점수</span><span id="score" class="value">0</span></div><div class="pill"><span class="label">남은 시간</span><span id="time" class="value">30.0</span></div><div class="pill"><span class="label">최고</span><span id="best" class="value">0</span></div></div>
+    </header>
+    <section class="arena" id="arena"><div class="grid"></div><div class="toast" id="toast"></div><button id="target" class="target" aria-label="target"></button><div class="overlay" id="overlay"><div class="card"><h2>준비!</h2><p>초록색 원만 눌러야 점수가 올라갑니다. 가끔 다른 색이 나오면 그냥 피하세요.</p><div class="actions"><button class="btn" id="startBtn">시작</button><button class="btn secondary" id="resetBestBtn">최고 기록 초기화</button></div></div></div></section>
+    <div class="hint">Enter = 시작 / 재시작 · Esc = 일시정지 · Space = 시작</div>
+  </main></div>
+  <script>
+    (() => {
+      const arena = document.getElementById('arena');
+      const target = document.getElementById('target');
+      const overlay = document.getElementById('overlay');
+      const startBtn = document.getElementById('startBtn');
+      const resetBestBtn = document.getElementById('resetBestBtn');
+      const scoreEl = document.getElementById('score');
+      const timeEl = document.getElementById('time');
+      const bestEl = document.getElementById('best');
+      const toast = document.getElementById('toast');
+      const KEY = 'colorTapBest';
+      const ROUND = 30;
+      const tips = ['좋아요!', '손이 풀렸어요.', '한 번 더!', '집중!', '속도 상승!', '기록 갱신?'];
+      const colors = ['linear-gradient(135deg,#7cf7d4,#7aa8ff)','linear-gradient(135deg,#ffb86b,#ff7b93)','linear-gradient(135deg,#9d8cff,#7cf7d4)'];
+      let state='idle', score=0, best=Number(localStorage.getItem(KEY)||0), remaining=ROUND, last=0, hideTimer=0, respawnTimer=0, pauseTimer=0, targetGood=true;
+      bestEl.textContent = best;
+      function clamp(n,min,max){return Math.max(min,Math.min(max,n));}
+      function rect(){return arena.getBoundingClientRect();}
+      function rand(min,max){return min + Math.random()*(max-min);}
+      function hud(){ scoreEl.textContent=score; timeEl.textContent=remaining.toFixed(1); bestEl.textContent=best; }
+      function saveBest(v){ best=v; localStorage.setItem(KEY,String(v)); bestEl.textContent=best; }
+      function showToast(t){ toast.textContent=t; toast.classList.add('show'); clearTimeout(showToast.t); showToast.t = setTimeout(()=>toast.classList.remove('show'), 900); }
+      function size(){ return score > 20 ? 54 : score > 10 ? 66 : 96; }
+      function speed(){ return clamp(1500 - score*38, 420, 1500); }
+      function spawn() {
+        clearTimeout(hideTimer); clearTimeout(respawnTimer); clearTimeout(pauseTimer);
+        const s = size(); const r = rect(); const pad = s/2 + 16;
+        target.style.width = `${s}px`; target.style.height = `${s}px`;
+        target.style.left = `${rand(pad, Math.max(pad, r.width - pad))}px`;
+        target.style.top = `${rand(pad, Math.max(pad, r.height - pad))}px`;
+        targetGood = Math.random() > 0.24;
+        target.style.background = targetGood ? colors[0] : colors[1 + (Math.random() > 0.5 ? 1 : 0)];
+        target.classList.toggle('small', score > 14);
+        target.classList.add('show');
+        hideTimer = setTimeout(() => {
+          if (state !== 'playing') return;
+          target.classList.remove('show');
+          remaining = Math.max(0, remaining - 1.2);
+          hud();
+          if (remaining <= 0) return end(true);
+          spawn();
+        }, speed());
+      }
+      function end(win=false){
+        state='ended'; clearTimeout(hideTimer); clearTimeout(respawnTimer); clearTimeout(pauseTimer); target.classList.remove('show');
+        if (score > best) saveBest(score);
+        overlay.innerHTML = `<div class="card"><h2>${win ? '시간 종료!' : '게임 종료'}</h2><p>점수 <strong>${score}</strong>점${score >= best ? ' — 최고 기록!' : ` / 최고 ${best}점`}</p><div class="actions"><button class="btn" id="restartBtn">다시하기</button><button class="btn secondary" id="resetBestBtn2">최고 기록 초기화</button></div></div>`;
+        overlay.style.display='grid';
+        document.getElementById('restartBtn').onclick = start;
+        document.getElementById('resetBestBtn2').onclick = () => { saveBest(0); showToast('최고 기록을 초기화했어요.'); };
+      }
+      function tick(now){ if(state !== 'playing') return; if(!last) last = now; const dt=(now-last)/1000; last = now; remaining = Math.max(0, remaining - dt); hud(); if(remaining <= 0) return end(true); requestAnimationFrame(tick); }
+      function start(){ state='playing'; score=0; remaining=ROUND; last=0; overlay.style.display='none'; overlay.innerHTML=''; target.classList.remove('show'); hud(); showToast('시작! 초록색 원만 누르세요.'); spawn(); requestAnimationFrame(tick); }
+      function pause(){ if(state !== 'playing') return; state='paused'; clearTimeout(hideTimer); clearTimeout(respawnTimer); clearTimeout(pauseTimer); target.classList.remove('show'); overlay.innerHTML = `<div class="card"><h2>일시정지</h2><p>잠깐 멈췄어요.</p><div class="actions"><button class="btn" id="resumeBtn">계속</button><button class="btn secondary" id="restartBtn2">처음부터</button></div></div>`; overlay.style.display='grid'; document.getElementById('resumeBtn').onclick = () => { overlay.style.display='none'; overlay.innerHTML=''; state='playing'; last=0; spawn(); requestAnimationFrame(tick); }; document.getElementById('restartBtn2').onclick = start; }
+      target.addEventListener('click', () => { if(state !== 'playing') return; if(targetGood){ score += target.classList.contains('small') ? 3 : 1; target.classList.add('hit'); setTimeout(() => target.classList.remove('hit'), 80); if(score % 5 === 0) showToast(tips[(score/5 - 1) % tips.length]); if(score > best) saveBest(score); remaining = Math.min(ROUND, remaining + 0.3); } else { remaining = Math.max(0, remaining - 2.0); showToast('아차, 잘못 눌렀어요!'); } hud(); if(remaining <= 0) return end(true); clearTimeout(hideTimer); spawn(); });
+      startBtn.addEventListener('click', start); resetBestBtn.addEventListener('click', () => { saveBest(0); showToast('최고 기록을 초기화했어요.'); });
+      window.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ if(state === 'idle' || state === 'ended') start(); else if(state === 'paused'){ overlay.style.display='none'; overlay.innerHTML=''; state='playing'; last=0; spawn(); requestAnimationFrame(tick); } } if(e.key === ' ') { e.preventDefault(); if(state === 'idle' || state === 'ended') start(); } if(e.key === 'Escape'){ if(state === 'playing') pause(); else if(state === 'paused'){ overlay.style.display='none'; overlay.innerHTML=''; state='playing'; last=0; spawn(); requestAnimationFrame(tick); } } });
+      window.addEventListener('resize', () => { if(state === 'playing') { clearTimeout(hideTimer); spawn(); } });
+      showToast('Enter 또는 시작 버튼으로 시작하세요.');
+    })();
+  </script>
+</body>
+</html>
