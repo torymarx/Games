@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Laser Drift</title>
+  <style>
+    :root{--bg1:#060814;--bg2:#121b44;--panel:rgba(12,16,34,.78);--text:#f4f7ff;--muted:#a9b5e0;--cyan:#7cf7d4;--blue:#7aa8ff;--pink:#ff7b93;--shadow:0 24px 70px rgba(0,0,0,.4)}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;overflow:hidden;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 20% 12%, rgba(122,168,255,.16), transparent 24%),radial-gradient(circle at 80% 20%, rgba(124,247,212,.12), transparent 26%),linear-gradient(160deg,var(--bg1),var(--bg2))}
+    .wrap{height:100%;display:grid;place-items:center;padding:18px}
+    .shell{width:min(980px,100%);height:min(720px,calc(100vh - 36px));border-radius:28px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));box-shadow:var(--shadow);backdrop-filter:blur(14px);position:relative;overflow:hidden}
+    .hud{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px 14px;position:relative;z-index:4}
+    .brand h1{margin:0;font-size:clamp(22px,3vw,32px)} .brand p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.45;max-width:42ch}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.pill{min-width:96px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);text-align:center}.label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.value{display:block;font-size:20px;font-weight:800}
+    .arena{position:absolute;inset:88px 16px 16px;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));touch-action:none}
+    canvas{width:100%;height:100%;display:block}
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(5,8,22,.22), rgba(5,8,22,.64));z-index:5;padding:20px}
+    .card{width:min(560px,100%);padding:30px 28px;border-radius:26px;background:var(--panel);border:1px solid rgba(255,255,255,.1);box-shadow:var(--shadow);text-align:center}
+    .card h2{margin:0 0 10px;font-size:clamp(30px,4vw,46px)} .card p{margin:0 0 18px;color:var(--muted);line-height:1.6}
+    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+    .btn{border:0;border-radius:999px;padding:12px 18px;font-weight:800;cursor:pointer;color:#08111c;background:linear-gradient(135deg,var(--cyan),#d7fff4);box-shadow:0 14px 32px rgba(124,247,212,.18)} .btn.secondary{color:var(--text);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);box-shadow:none}
+    .toast{position:absolute;left:50%;top:92px;transform:translateX(-50%);z-index:6;padding:10px 14px;border-radius:999px;font-size:13px;color:var(--text);background:rgba(10,14,28,.82);border:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .22s ease;white-space:nowrap;pointer-events:none}.toast.show{opacity:1}
+    .hint{position:absolute;left:20px;bottom:16px;z-index:4;color:var(--muted);font-size:13px;user-select:none}
+    @media (max-width:700px){.shell{height:calc(100vh - 12px);border-radius:20px}.arena{inset:86px 10px 12px}.hud{padding:14px 14px 10px}.pill{min-width:90px}.value{font-size:18px}.brand p{max-width:32ch}.hint{left:14px;right:14px;font-size:12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="shell">
+      <header class="hud">
+        <div class="brand">
+          <h1>Laser Drift</h1>
+          <p>3개 레인만 왔다 갔다 하면서 40초를 버티는 우주 회피 게임</p>
+        </div>
+        <div class="stats" aria-live="polite">
+          <div class="pill"><span class="label">점수</span><span id="score" class="value">0</span></div>
+          <div class="pill"><span class="label">남은 시간</span><span id="time" class="value">40.0</span></div>
+          <div class="pill"><span class="label">최고 기록</span><span id="best" class="value">0</span></div>
+        </div>
+      </header>
+      <section class="arena" id="arena">
+        <canvas id="c"></canvas>
+        <div class="toast" id="toast"></div>
+        <div class="overlay" id="overlay">
+          <div class="card">
+            <h2>레이저 회피</h2>
+            <p>위/아래로 레인을 바꾸며 레이저를 피하세요. 드래그 또는 키보드로 조작할 수 있고, 실수하면 바로 속도가 줄지 않습니다. 그냥 계속 달리면 됩니다.</p>
+            <div class="actions">
+              <button class="btn" id="startBtn">시작</button>
+              <button class="btn secondary" id="resetBestBtn">기록 초기화</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="hint">조작: ↑ ↓ / W S / 드래그 · Space 재시작 · Esc 일시정지</div>
+    </main>
+  </div>
+  <script>
+  (()=>{
+    const arena=document.getElementById('arena'), canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
+    const overlay=document.getElementById('overlay'), startBtn=document.getElementById('startBtn'), resetBestBtn=document.getElementById('resetBestBtn');
+    const scoreEl=document.getElementById('score'), timeEl=document.getElementById('time'), bestEl=document.getElementById('best'), toast=document.getElementById('toast');
+    const KEY='laserDriftBest', DURATION=40; let best=+localStorage.getItem(KEY)||0; bestEl.textContent=best;
+    let W=0,H=0,dpr=1,state='idle',last=0,t=0,score=0,remain=DURATION,shake=0,flash=0,spawn=0,dist=0,pointer=false;
+    let lane=1, playerY=0, lanes=[], stars=[], lasers=[], sparks=[];
+    const keys={up:false,down:false};
+    const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)); const rand=(a,b)=>a+Math.random()*(b-a); const lerp=(a,b,t)=>a+(b-a)*t;
+    function show(msg,ms=1200){toast.textContent=msg;toast.classList.add('show');clearTimeout(show._);show._=setTimeout(()=>toast.classList.remove('show'),ms)}
+    function saveBest(v){best=v;localStorage.setItem(KEY,String(v));bestEl.textContent=v}
+    function resize(){const r=arena.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=r.width|0;H=r.height|0;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0); lanes=[H*0.28,H*0.5,H*0.72]; playerY=lanes[lane]||lanes[1]; if(!stars.length) stars=Array.from({length:120},()=>({x:Math.random()*W,y:Math.random()*H,r:rand(.8,2.2),s:rand(.2,1)})); }
+    function reset(){score=0;remain=DURATION;shake=0;flash=0;spawn=0;dist=0;lasers=[];sparks=[];lane=1;playerY=lanes[1]||0;last=0;updateHud();}
+    function updateHud(){scoreEl.textContent=Math.floor(score);timeEl.textContent=remain.toFixed(1)}
+    function start(){reset();state='playing';overlay.style.display='none';overlay.innerHTML='';show('레이저를 피해 보세요.');requestAnimationFrame(loop)}
+    function end(win=false){state='ended';if(score>best)saveBest(Math.floor(score));overlay.innerHTML=`<div class="card"><h2>${win?'탈출 성공!':'게임 오버'}</h2><p>최종 점수 <strong>${Math.floor(score)}</strong>점 · 생존 거리 ${Math.floor(dist)}m</p><div class="actions"><button class="btn" id="restartBtn">다시 하기</button><button class="btn secondary" id="resetBestBtn2">기록 초기화</button></div></div>`;overlay.style.display='grid';document.getElementById('restartBtn').onclick=start;document.getElementById('resetBestBtn2').onclick=()=>{saveBest(0);show('최고 기록을 초기화했습니다.')}}
+    function pause(){if(state!=='playing')return;state='paused';overlay.innerHTML=`<div class="card"><h2>일시정지</h2><p>잠깐 쉬고 다시 달릴 수 있어요.</p><div class="actions"><button class="btn" id="resumeBtn">계속</button><button class="btn secondary" id="restartBtn2">처음부터</button></div></div>`;overlay.style.display='grid';document.getElementById('resumeBtn').onclick=()=>{overlay.style.display='none';overlay.innerHTML='';state='playing';last=0;requestAnimationFrame(loop)};document.getElementById('restartBtn2').onclick=start}
+    function spawnLaser(){const l=Math.floor(Math.random()*3); lasers.push({lane:l,x:rand(40,W-40),y:-30,r:18,v:rand(180,270)+score*1.7});}
+    function burst(x,y,c='#7cf7d4',n=14){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2; sparks.push({x,y,vx:Math.cos(a)*rand(80,240),vy:Math.sin(a)*rand(80,240),life:rand(.35,.8),r:rand(1.2,3.5),c})}}
+    function drawBg(dt){ctx.fillStyle='#050816';ctx.fillRect(0,0,W,H);ctx.save();ctx.globalCompositeOperation='lighter';for(const s of stars){s.y+=(22+s.s*55)*dt;s.x+=Math.sin((s.y+s.x)*.0015)*.2;if(s.y>H+4){s.y=-4;s.x=Math.random()*W}s.v=s.v||0;ctx.fillStyle=`rgba(255,255,255,${.2+s.s*.7})`;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill()}ctx.restore();ctx.save();ctx.strokeStyle='rgba(122,168,255,.12)';for(let x=W/2-140;x<=W/2+140;x+=140){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(const ly of lanes){ctx.beginPath();ctx.moveTo(0,ly);ctx.lineTo(W,ly);ctx.stroke()}ctx.restore()}
+    function drawPlayer(){ctx.save();ctx.translate(W*0.18,playerY);ctx.shadowColor='rgba(124,247,212,.5)';ctx.shadowBlur=18;ctx.fillStyle='#dff8ff';ctx.beginPath();ctx.moveTo(0,-24);ctx.lineTo(24,10);ctx.lineTo(0,6);ctx.lineTo(-24,10);ctx.closePath();ctx.fill();ctx.fillStyle='rgba(122,168,255,.9)';ctx.beginPath();ctx.arc(0,4,6,0,Math.PI*2);ctx.fill();ctx.restore()}
+    function drawLaser(l){const y=l.y;const x=l.x;ctx.save();ctx.translate(x,y);ctx.shadowColor='rgba(255,123,147,.45)';ctx.shadowBlur=16;ctx.fillStyle='#ff7b93';ctx.fillRect(-12,-20,24,40);ctx.fillStyle='rgba(255,255,255,.82)';ctx.fillRect(-3,-16,6,32);ctx.restore()}
+    function drawSpark(p,dt){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.98;p.vy*=.98;p.vy+=220*dt;ctx.save();ctx.globalAlpha=clamp(p.life/.8,0,1);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore()}
+    function update(dt){if(state!=='playing')return; if(flash>0)flash=Math.max(0,flash-dt*3); if(shake>0)shake=Math.max(0,shake-dt*18); t+=dt; remain=Math.max(0,remain-dt); dist+=dt*14; score+=dt*10; spawn-=dt; if(spawn<=0){spawnLaser();spawn=clamp(.72-score/500,.22,.72)+rand(-.04,.12)}
+      const mv=(keys.down?1:0)-(keys.up?1:0); if(mv) lane=clamp(lane+mv,0,2); playerY=lerp(playerY,lanes[lane],1-Math.pow(.0006,dt));
+      for(let i=lasers.length-1;i>=0;i--){const o=lasers[i]; o.y+=o.v*dt; o.x+=Math.sin((o.y+o.lane*70)*.01)*34*dt; const dx=o.x-W*0.18, dy=o.y-playerY; if(Math.hypot(dx,dy)<26){burst(o.x,o.y,'#ff7b93',18); lasers.splice(i,1); shake=11; flash=1; show('아슬아슬!'); if(remain>0){score=Math.max(0,score-12)} continue;} if(o.y>H+40){lasers.splice(i,1); score+=6; if(score>best)saveBest(Math.floor(score));}}
+      for(let i=sparks.length-1;i>=0;i--) { if(sparks[i].life<=0) sparks.splice(i,1) }
+      if(remain<=0) end(true); }
+    function render(dt){ctx.save(); if(shake>0)ctx.translate(rand(-shake,shake),rand(-shake,shake)); drawBg(dt); for(const o of lasers) drawLaser(o); for(const p of sparks) drawSpark(p,dt); drawPlayer(); ctx.restore(); if(flash>0){ctx.save();ctx.globalAlpha=flash*.28;ctx.fillStyle='#ff7b93';ctx.fillRect(0,0,W,H);ctx.restore();}}
+    function loop(ts){if(state!=='playing')return; if(!last)last=ts; const dt=Math.min(.033,(ts-last)/1000); last=ts; update(dt); render(dt); updateHud(); if(state==='playing')requestAnimationFrame(loop)}
+    function pointerLane(clientY){const r=arena.getBoundingClientRect(); const y=clientY-r.top; return clamp(Math.floor(y/(r.height/3)),0,2)}
+    window.addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='w'||e.key==='W')keys.up=true; if(e.key==='ArrowDown'||e.key==='s'||e.key==='S')keys.down=true; if(e.key==='Escape'){if(state==='playing')pause(); else if(state==='paused'){overlay.style.display='none';overlay.innerHTML='';state='playing';last=0;requestAnimationFrame(loop)}} if(e.key===' '||e.key==='Enter'){e.preventDefault(); if(state==='idle'||state==='ended')start(); else if(state==='paused'){overlay.style.display='none';overlay.innerHTML='';state='playing';last=0;requestAnimationFrame(loop)}}});
+    window.addEventListener('keyup',e=>{if(e.key==='ArrowUp'||e.key==='w'||e.key==='W')keys.up=false; if(e.key==='ArrowDown'||e.key==='s'||e.key==='S')keys.down=false});
+    arena.addEventListener('pointerdown',e=>{pointer=true; lane=pointerLane(e.clientY); if(state==='idle')start()}); arena.addEventListener('pointermove',e=>{if(!pointer&&e.pointerType!=='mouse')return; if(state==='playing'||state==='idle'||state==='paused')lane=pointerLane(e.clientY)}); window.addEventListener('pointerup',()=>pointer=false);
+    arena.addEventListener('touchstart',e=>{pointer=true; lane=pointerLane(e.touches[0].clientY); if(state==='idle')start()},{passive:true}); arena.addEventListener('touchmove',e=>{if(state==='playing'||state==='idle'||state==='paused')lane=pointerLane(e.touches[0].clientY)},{passive:true});
+    window.addEventListener('resize',resize); startBtn.addEventListener('click',start); resetBestBtn.addEventListener('click',()=>{saveBest(0);show('최고 기록을 초기화했습니다.')}); resize(); updateHud(); show('Enter 또는 시작 버튼으로 출발하세요.'); render(0);
+  })();
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Games Dashboard
 
-이 폴더는 GitHub Pages용 게임 허브입니다. 현재 Orbit Dodge, Blink Catch, Color Tap을 모아뒀습니다.
+이 폴더는 GitHub Pages용 게임 허브입니다. 현재 Orbit Dodge, Blink Catch, Color Tap, Laser Drift을 모아뒀습니다.
 
 ## 구조
 - `index.html` — 메인 대시보드
