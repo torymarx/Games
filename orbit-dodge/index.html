@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orbit Dodge</title>
+  <style>
+    :root{
+      --bg1:#050816; --bg2:#0d1634; --panel:rgba(10,14,28,.76); --text:#f4f7ff;
+      --muted:#a9b6e3; --cyan:#7cf7d4; --blue:#7aa8ff; --pink:#ff7b93; --shadow:0 28px 90px rgba(0,0,0,.45)
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{
+      margin:0; overflow:hidden; color:var(--text);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(122,168,255,.16), transparent 28%),
+        radial-gradient(circle at 80% 20%, rgba(124,247,212,.12), transparent 24%),
+        radial-gradient(circle at 50% 80%, rgba(255,123,147,.10), transparent 30%),
+        linear-gradient(160deg,var(--bg1),var(--bg2));
+    }
+    .wrap{height:100%;display:grid;place-items:center;padding:18px}
+    .shell{
+      width:min(1100px,100%); height:min(760px,calc(100vh - 36px));
+      border-radius:28px; border:1px solid rgba(255,255,255,.1);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow:var(--shadow); backdrop-filter:blur(14px); position:relative; overflow:hidden;
+    }
+    .hud{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px 14px;position:relative;z-index:4}
+    .brand h1{margin:0;font-size:clamp(22px,3vw,32px);letter-spacing:.02em}
+    .brand p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{min-width:104px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.12) inset}
+    .label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.value{display:block;font-size:20px;font-weight:800}
+    .arena{
+      position:absolute;inset:88px 16px 16px;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.08);
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));touch-action:none
+    }
+    canvas{width:100%;height:100%;display:block}
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(5,8,22,.20), rgba(5,8,22,.62));z-index:5;padding:20px}
+    .overlay.cinematic{background:radial-gradient(circle at center, rgba(255,123,147,.12), rgba(5,8,22,.68) 58%, rgba(0,0,0,.84));backdrop-filter:blur(2px)}
+    .card{width:min(560px,100%);padding:30px 28px;border-radius:26px;background:var(--panel);border:1px solid rgba(255,255,255,.1);box-shadow:var(--shadow);text-align:center}
+    .card.boom{transform-origin:center;animation:cardPop .9s cubic-bezier(.16,1,.3,1), cardFloat 2.6s ease-in-out .9s infinite}
+    .gameoverBanner{margin-top:10px;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+    @keyframes cardPop{0%{opacity:0;transform:translateY(36px) scale(.7) rotateX(18deg)}60%{opacity:1;transform:translateY(-6px) scale(1.03) rotateX(0)}100%{opacity:1;transform:translateY(0) scale(1) rotateX(0)}}
+    @keyframes cardFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+    @keyframes shakeFlash{0%{transform:translate(0,0) rotate(0)}20%{transform:translate(-2px,1px) rotate(-.3deg)}40%{transform:translate(2px,-1px) rotate(.3deg)}60%{transform:translate(-1px,-2px) rotate(-.2deg)}80%{transform:translate(1px,2px) rotate(.2deg)}100%{transform:translate(0,0) rotate(0)}}
+    .card h2{margin:0 0 10px;font-size:clamp(30px,4vw,46px)}
+    .card p{margin:0 0 18px;color:var(--muted);line-height:1.6}
+    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+    .btn{border:0;border-radius:999px;padding:12px 18px;font-weight:800;cursor:pointer;color:#08111c;background:linear-gradient(135deg,var(--cyan),#cffff1);box-shadow:0 14px 32px rgba(124,247,212,.18)}
+    .btn.secondary{color:var(--text);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);box-shadow:none}
+    .toast{position:absolute;left:50%;top:92px;transform:translateX(-50%);z-index:6;padding:10px 14px;border-radius:999px;font-size:13px;color:var(--text);background:rgba(10,14,28,.82);border:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .22s ease;white-space:nowrap;pointer-events:none}
+    .toast.show{opacity:1}
+    .hint{position:absolute;left:20px;bottom:16px;z-index:4;color:var(--muted);font-size:13px;max-width:72ch;user-select:none}
+    .barWrap{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px}
+    .bar{width:140px;height:10px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.08)}
+    .bar>span{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--cyan),var(--blue))}
+    .barLabel{font-size:11px;color:var(--muted);margin-bottom:4px}
+    .mobilePad{position:absolute;right:18px;bottom:16px;z-index:4;color:rgba(255,255,255,.55);font-size:12px;text-align:right;pointer-events:none}
+    @media (max-width:700px){.shell{height:calc(100vh - 12px);border-radius:20px}.arena{inset:86px 10px 12px}.hud{padding:14px 14px 10px;align-items:flex-start}.pill{min-width:92px}.value{font-size:18px}.hint{left:14px;right:14px;font-size:12px}.brand p{max-width:32ch}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="shell" aria-label="Orbit Dodge game">
+      <header class="hud">
+        <div class="brand">
+          <h1>Orbit Dodge</h1>
+          <p>우주선으로 소행성과 드론을 피하면서 45초를 버티세요. 에너지 코인을 먹으면 실드가 회복됩니다.</p>
+        </div>
+        <div>
+          <div class="stats" aria-live="polite">
+            <div class="pill"><span class="label">점수</span><span id="score" class="value">0</span></div>
+            <div class="pill"><span class="label">남은 시간</span><span id="time" class="value">45.0</span></div>
+            <div class="pill"><span class="label">최고 기록</span><span id="best" class="value">0</span></div>
+          </div>
+          <div class="barWrap" aria-hidden="true">
+            <div>
+              <div class="barLabel">실드</div>
+              <div class="bar"><span id="shieldBar"></span></div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="arena" id="arena">
+        <canvas id="gameCanvas"></canvas>
+        <div class="toast" id="toast"></div>
+        <div class="overlay" id="overlay">
+          <div class="card">
+            <h2>네뷸라 탈출</h2>
+            <p>
+              ← → 또는 A / D 로 이동하세요. 마우스나 손가락으로도 조종할 수 있습니다.<br>
+              장애물에 부딪히면 실드가 깎이고, 실드가 0이 되면 게임 오버입니다.
+            </p>
+            <div class="actions">
+              <button class="btn" id="startBtn">시작</button>
+              <button class="btn secondary" id="resetBestBtn">기록 초기화</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="hint">조작: ← → / A D / 마우스 드래그 · Space = 재시작 · Esc = 일시정지</div>
+      <div class="mobilePad">손가락으로 캔버스를 끌어도 됩니다</div>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const arena = document.getElementById('arena');
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const overlay = document.getElementById('overlay');
+      const startBtn = document.getElementById('startBtn');
+      const resetBestBtn = document.getElementById('resetBestBtn');
+      const scoreEl = document.getElementById('score');
+      const timeEl = document.getElementById('time');
+      const bestEl = document.getElementById('best');
+      const shieldBar = document.getElementById('shieldBar');
+      const toast = document.getElementById('toast');
+
+      const STORAGE_KEY = 'orbitDodgeBest';
+      const ROUND_SECONDS = 45;
+      const colors = {
+        star: 'rgba(255,255,255,.9)',
+        nebulaA: 'rgba(124,247,212,.18)',
+        nebulaB: 'rgba(122,168,255,.14)',
+        nebulaC: 'rgba(255,123,147,.13)',
+        player: '#dff8ff',
+        playerGlow: 'rgba(124,247,212,.55)',
+        danger: '#ff7b93',
+        orb: '#7cf7d4',
+      };
+      const savedBest = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      bestEl.textContent = savedBest;
+
+      let state = 'idle';
+      let width = 0;
+      let height = 0;
+      let dpr = 1;
+      let lastTs = 0;
+      let spawnTimer = 0;
+      let orbTimer = 0;
+      let shake = 0;
+      let score = 0;
+      let best = savedBest;
+      let remaining = ROUND_SECONDS;
+      let shield = 3;
+      let invuln = 0;
+      let combo = 0;
+      let comboTime = 0;
+      let distance = 0;
+      let playerTargetX = 0;
+      let pointerActive = false;
+      let flash = 0;
+      let gameoverFx = null;
+
+      const player = { x: 0, y: 0, w: 54, h: 72, maxSpeed: 720 };
+      let stars = [];
+      let obstacles = [];
+      let particles = [];
+      let orbs = [];
+      let nebula = [];
+
+      const keys = { left: false, right: false };
+
+      function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+      function rand(min, max) { return min + Math.random() * (max - min); }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function showToast(text, ms = 1200) {
+        toast.textContent = text;
+        toast.classList.add('show');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => toast.classList.remove('show'), ms);
+      }
+      function saveBest(v) {
+        best = v;
+        localStorage.setItem(STORAGE_KEY, String(v));
+        bestEl.textContent = best;
+      }
+      function updateHud() {
+        scoreEl.textContent = Math.floor(score);
+        timeEl.textContent = remaining.toFixed(1);
+        shieldBar.style.width = `${clamp((shield / 3) * 100, 0, 100)}%`;
+      }
+      function resize() {
+        const rect = arena.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = Math.max(1, Math.floor(rect.width));
+        height = Math.max(1, Math.floor(rect.height));
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (!player.x) {
+          player.x = width * 0.5;
+          player.y = height * 0.84;
+          playerTargetX = player.x;
+        }
+        makeWorld(true);
+      }
+      function makeWorld(initial = false) {
+        if (initial || stars.length === 0) {
+          stars = Array.from({ length: 140 }, () => ({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            z: rand(0.2, 1),
+            r: rand(0.7, 2.2),
+          }));
+          nebula = [
+            { x: width * 0.18, y: height * 0.20, r: Math.min(width, height) * 0.26, c: colors.nebulaA },
+            { x: width * 0.82, y: height * 0.18, r: Math.min(width, height) * 0.22, c: colors.nebulaB },
+            { x: width * 0.52, y: height * 0.86, r: Math.min(width, height) * 0.24, c: colors.nebulaC },
+          ];
+        }
+      }
+      function resetGame() {
+        score = 0;
+        remaining = ROUND_SECONDS;
+        shield = 3;
+        invuln = 0;
+        combo = 0;
+        comboTime = 0;
+        distance = 0;
+        obstacles = [];
+        particles = [];
+        orbs = [];
+        flash = 0;
+        shake = 0;
+        gameoverFx = null;
+        player.x = width * 0.5;
+        player.y = height * 0.84;
+        playerTargetX = player.x;
+        lastTs = 0;
+        spawnTimer = 0;
+        orbTimer = 0;
+        updateHud();
+      }
+      function startGame() {
+        resetGame();
+        state = 'playing';
+        overlay.style.display = 'none';
+        overlay.innerHTML = '';
+        overlay.classList.remove('cinematic');
+        overlay.style.animation = '';
+        showToast('부딪혀도 되지만, 실드는 소중합니다.');
+        requestAnimationFrame(loop);
+      }
+      function endGame() {
+        if (state === 'gameover' || state === 'ended') return;
+        state = 'gameover';
+        if (score > best) saveBest(Math.floor(score));
+        overlay.classList.add('cinematic');
+        overlay.innerHTML = `
+          <div class="card boom">
+            <div class="gameoverBanner">MISSION FAILED</div>
+            <h2>${remaining <= 0 ? '탈출 실패' : '함선 파괴'}</h2>
+            <p>
+              최종 점수 <strong>${Math.floor(score)}</strong>점 · 생존 거리 ${Math.floor(distance)}m<br>
+              ${score >= best ? '새 최고 기록입니다!' : `최고 기록은 ${best}점입니다.`}
+            </p>
+            <div class="actions">
+              <button class="btn" id="restartBtn">다시 하기</button>
+              <button class="btn secondary" id="resetBestBtn2">기록 초기화</button>
+            </div>
+          </div>`;
+        overlay.style.display = 'grid';
+        overlay.style.animation = 'shakeFlash .22s linear 0s 2';
+        gameoverFx = { t: 0, phase: 0, duration: 2.8, burstX: player.x, burstY: player.y };
+        explode(player.x, player.y, '#ff7b93', 48, 340);
+        explode(player.x - 18, player.y + 12, '#7aa8ff', 22, 260);
+        showToast('함선이 산산조각 났습니다...', 1200);
+        document.getElementById('restartBtn').onclick = startGame;
+        document.getElementById('resetBestBtn2').onclick = () => { saveBest(0); showToast('최고 기록을 초기화했습니다.'); };
+      }
+      function pauseGame() {
+        if (state !== 'playing') return;
+        state = 'paused';
+        overlay.innerHTML = `
+          <div class="card">
+            <h2>일시정지</h2>
+            <p>잠깐 숨 돌리고 다시 출발할 수 있어요.</p>
+            <div class="actions">
+              <button class="btn" id="resumeBtn">계속</button>
+              <button class="btn secondary" id="restartBtn2">처음부터</button>
+            </div>
+          </div>`;
+        overlay.style.display = 'grid';
+        document.getElementById('resumeBtn').onclick = () => {
+          overlay.style.display = 'none';
+          overlay.innerHTML = '';
+          state = 'playing';
+          lastTs = 0;
+          requestAnimationFrame(loop);
+        };
+        document.getElementById('restartBtn2').onclick = startGame;
+      }
+      function explode(x, y, color, amount = 14, force = 220) {
+        for (let i = 0; i < amount; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const s = rand(0.6, 1.6) * force;
+          particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.35, 0.85), r: rand(1.5, 3.6), color });
+        }
+      }
+      function spawnObstacle() {
+        const roll = Math.random();
+        const kind = roll < 0.62 ? 'asteroid' : roll < 0.88 ? 'drone' : 'mine';
+        const size = kind === 'asteroid' ? rand(28, 64) : kind === 'drone' ? rand(24, 40) : rand(18, 28);
+        obstacles.push({
+          kind,
+          x: rand(size + 16, width - size - 16),
+          y: -size - 20,
+          r: size,
+          vx: rand(-48, 48),
+          vy: 150 + Math.min(280, score * 2.1) + rand(-10, 105),
+          wobble: rand(0.6, 2.2),
+          rot: rand(0, Math.PI * 2),
+          spin: rand(-2.3, 2.3),
+        });
+      }
+      function spawnOrb() {
+        orbs.push({ x: rand(40, width - 40), y: -24, r: 15, vy: rand(96, 156), t: rand(0, 10) });
+      }
+      function addScore(n) {
+        score += n;
+        if (score > best) saveBest(Math.floor(score));
+      }
+      function hitPlayer() {
+        if (invuln > 0) return;
+        shield -= 1;
+        invuln = 1.15;
+        shake = 10;
+        flash = 1;
+        combo = 0;
+        comboTime = 0;
+        explode(player.x, player.y - 18, '#ff7b93', 18, 240);
+        showToast(shield > 0 ? `실드가 ${shield} 남았습니다!` : '실드가 전부 소진됐습니다!', 900);
+        if (shield <= 0) endGame();
+      }
+      function drawBackground(dt) {
+        const grad = ctx.createLinearGradient(0, 0, 0, height);
+        grad.addColorStop(0, '#050816');
+        grad.addColorStop(0.55, '#0a1230');
+        grad.addColorStop(1, '#050816');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+
+        for (const n of nebula) {
+          const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+          g.addColorStop(0, n.c);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const s of stars) {
+          s.y += (18 + s.z * 58) * dt;
+          s.x += Math.sin((s.y + s.x) * 0.002) * 0.18 * s.z;
+          if (s.y > height + 4) { s.y = -4; s.x = Math.random() * width; }
+          ctx.fillStyle = `rgba(255,255,255,${0.3 + s.z * 0.7})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r * (0.9 + s.z * 0.7), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(122,168,255,.14)';
+        ctx.lineWidth = 1;
+        const gridShift = (distance * 0.8) % 52;
+        for (let y = -52; y < height + 52; y += 52) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + gridShift);
+          ctx.lineTo(width, y + gridShift);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      function drawPlayer() {
+        const wobble = Math.sin(performance.now() * 0.006) * 1.5;
+        const x = player.x;
+        const y = player.y + wobble;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.shadowColor = colors.playerGlow;
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = invuln > 0 ? 'rgba(255,255,255,.5)' : colors.player;
+        ctx.beginPath();
+        ctx.moveTo(0, -32);
+        ctx.lineTo(24, 20);
+        ctx.lineTo(0, 14);
+        ctx.lineTo(-24, 20);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#0d1634';
+        ctx.beginPath();
+        ctx.moveTo(0, -22);
+        ctx.lineTo(12, 10);
+        ctx.lineTo(0, 6);
+        ctx.lineTo(-12, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = shield > 0 ? 'rgba(124,247,212,.9)' : 'rgba(255,123,147,.9)';
+        ctx.beginPath();
+        ctx.arc(0, 5, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(122,168,255,.85)';
+        ctx.fillRect(-6, 12, 12, 16);
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.fillRect(-2, 15, 4, 8);
+        ctx.restore();
+      }
+      function drawObstacle(o) {
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.rotate(o.rot);
+        if (o.kind === 'asteroid') {
+          ctx.fillStyle = '#9aa8c9';
+          ctx.shadowColor = 'rgba(255,255,255,.12)';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          const points = 9;
+          for (let i = 0; i < points; i++) {
+            const a = (i / points) * Math.PI * 2;
+            const rr = o.r * rand(0.72, 1.05);
+            const px = Math.cos(a) * rr;
+            const py = Math.sin(a) * rr;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else if (o.kind === 'drone') {
+          ctx.shadowColor = 'rgba(122,168,255,.35)';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#7aa8ff';
+          ctx.beginPath();
+          ctx.arc(0, 0, o.r * 0.92, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#dff8ff';
+          ctx.beginPath();
+          ctx.arc(0, 0, o.r * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.8)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(-o.r * 1.05, 0); ctx.lineTo(-o.r * 1.4, 0);
+          ctx.moveTo(o.r * 1.05, 0); ctx.lineTo(o.r * 1.4, 0);
+          ctx.stroke();
+        } else {
+          ctx.shadowColor = 'rgba(255,123,147,.35)';
+          ctx.shadowBlur = 14;
+          ctx.fillStyle = '#ff7b93';
+          ctx.beginPath();
+          ctx.arc(0, 0, o.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.75)';
+          ctx.beginPath();
+          ctx.arc(0, 0, o.r * 0.28, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      function drawOrb(o) {
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.shadowColor = 'rgba(124,247,212,.55)';
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = '#7cf7d4';
+        ctx.beginPath();
+        ctx.arc(0, 0, o.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.8)';
+        ctx.beginPath();
+        ctx.arc(0, 0, o.r * 0.36, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      function drawParticles(dt) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.life -= dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vx *= 0.985;
+          p.vy *= 0.985;
+          p.vy += 220 * dt;
+          if (p.life <= 0) { particles.splice(i, 1); continue; }
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = clamp(p.life / 0.85, 0, 1);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+      function drawGameoverFx(dt) {
+        if (!gameoverFx) return;
+        gameoverFx.t += dt;
+        gameoverFx.phase = clamp(gameoverFx.t / gameoverFx.duration, 0, 1);
+        const p = gameoverFx.phase;
+        const cx = gameoverFx.burstX;
+        const cy = gameoverFx.burstY;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.9 - p * 0.45;
+        const blast = 40 + p * 180;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, blast);
+        g.addColorStop(0, 'rgba(255,255,255,.95)');
+        g.addColorStop(0.12, 'rgba(255,123,147,.75)');
+        g.addColorStop(0.35, 'rgba(255,123,147,.24)');
+        g.addColorStop(1, 'rgba(255,123,147,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, blast, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = `rgba(255,255,255,${0.12 - p * 0.06})`;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 14; i++) {
+          const y = cy + (i - 7) * 18 + Math.sin(p * 9 + i) * 12;
+          ctx.beginPath();
+          ctx.moveTo(cx - 160 - p * 140, y);
+          ctx.lineTo(cx + 160 + p * 140, y + Math.sin(i + p * 6) * 10);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        ctx.save();
+        for (let i = 0; i < 3; i++) {
+          const rr = 70 + p * (170 + i * 50);
+          ctx.globalAlpha = (0.5 - p * 0.24) * (1 - i * 0.18);
+          ctx.strokeStyle = i === 0 ? '#ff7b93' : i === 1 ? '#7aa8ff' : '#7cf7d4';
+          ctx.lineWidth = 2 + i;
+          ctx.beginPath();
+          ctx.arc(cx + Math.sin(p * 12) * 6, cy + Math.cos(p * 10) * 6, rr, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        if (p > 0.86) {
+          ctx.save();
+          ctx.globalAlpha = (p - 0.86) * 2.8;
+          ctx.fillStyle = 'rgba(255,255,255,.9)';
+          ctx.font = '900 46px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'rgba(255,123,147,.8)';
+          ctx.shadowBlur = 24;
+          ctx.fillText('SYSTEM DOWN', cx, cy - 30);
+          ctx.font = '700 14px Inter, system-ui, sans-serif';
+          ctx.fillStyle = 'rgba(255,255,255,.78)';
+          ctx.fillText('복구 프로토콜 대기 중...', cx, cy + 2);
+          ctx.restore();
+        }
+
+        if (gameoverFx.t >= gameoverFx.duration) {
+          gameoverFx = null;
+          state = 'ended';
+          overlay.style.animation = '';
+        }
+      }
+      function updateEntities(dt) {
+        if (invuln > 0) invuln -= dt;
+        if (flash > 0) flash = Math.max(0, flash - dt * 3);
+        if (shake > 0) shake = Math.max(0, shake - dt * 18);
+        if (comboTime > 0) comboTime -= dt; else combo = 0;
+
+        const moveIntent = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+        if (moveIntent !== 0) playerTargetX += moveIntent * player.maxSpeed * dt;
+        if (pointerActive) playerTargetX = clamp(playerTargetX, 34, width - 34);
+        playerTargetX = clamp(playerTargetX, 34, width - 34);
+        player.x = lerp(player.x, playerTargetX, 1 - Math.pow(0.0006, dt));
+
+        const speedBoost = 1 + Math.min(1.35, score / 220);
+        distance += dt * (18 + speedBoost * 10);
+        score += dt * (11 + speedBoost * 7);
+        remaining = Math.max(0, remaining - dt);
+
+        spawnTimer -= dt;
+        orbTimer -= dt;
+        if (spawnTimer <= 0) {
+          spawnObstacle();
+          spawnTimer = clamp(0.78 - score / 520, 0.28, 0.78) + rand(-0.08, 0.12);
+        }
+        if (orbTimer <= 0) {
+          if (shield < 3 && Math.random() < 0.7) spawnOrb();
+          orbTimer = rand(4.5, 9.5);
+        }
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+          const o = obstacles[i];
+          o.y += o.vy * dt;
+          o.x += Math.sin((o.y * 0.006) + o.wobble) * (24 + speedBoost * 18) * dt + o.vx * dt;
+          o.rot += o.spin * dt;
+
+          const dx = o.x - player.x;
+          const dy = o.y - player.y;
+          const hitR = o.r + 18;
+          if (dx * dx + dy * dy < hitR * hitR) {
+            obstacles.splice(i, 1);
+            hitPlayer();
+            continue;
+          }
+          if (o.y - o.r > height + 40) {
+            obstacles.splice(i, 1);
+            combo += 1;
+            comboTime = 1.2;
+            addScore(4 + Math.min(8, combo));
+            if (combo % 3 === 0) showToast(`연속 회피 +${4 + Math.min(8, combo)}점`);
+            continue;
+          }
+          if (o.x < -120 || o.x > width + 120) o.vx *= -0.8;
+        }
+
+        for (let i = orbs.length - 1; i >= 0; i--) {
+          const o = orbs[i];
+          o.y += o.vy * dt;
+          o.x += Math.sin((o.y * 0.01) + o.t) * 42 * dt;
+          o.t += dt;
+          if (o.y - o.r > height + 20) { orbs.splice(i, 1); continue; }
+          const dx = o.x - player.x;
+          const dy = o.y - player.y;
+          if (dx * dx + dy * dy < (o.r + 22) * (o.r + 22)) {
+            orbs.splice(i, 1);
+            if (shield < 3) {
+              shield += 1;
+              addScore(10);
+              showToast('실드 +1!');
+              explode(o.x, o.y, '#7cf7d4', 10, 170);
+            } else {
+              addScore(8);
+              showToast('에너지 보너스!');
+            }
+          }
+        }
+
+        if (remaining <= 0) endGame();
+      }
+      function render(dt) {
+        ctx.save();
+        const fxShake = state === 'gameover' ? 14 : shake;
+        if (fxShake > 0) ctx.translate(rand(-fxShake, fxShake), rand(-fxShake, fxShake));
+        drawBackground(dt);
+        for (const o of orbs) drawOrb(o);
+        for (const o of obstacles) drawObstacle(o);
+        drawParticles(dt);
+        drawPlayer();
+        if (state === 'gameover') drawGameoverFx(dt);
+        ctx.fillStyle = 'rgba(255,255,255,.75)';
+        ctx.font = '600 12px Inter, system-ui, sans-serif';
+        ctx.fillText(`Combo ${combo > 1 ? `x${combo}` : 'x1'}`, 18, 26);
+        ctx.fillStyle = comboTime > 0 ? 'rgba(124,247,212,.85)' : 'rgba(255,255,255,.35)';
+        ctx.fillText(comboTime > 0 ? '연속 회피 보너스 중' : ' ', 18, 44);
+        if (flash > 0) {
+          ctx.save();
+          ctx.globalAlpha = flash * 0.35;
+          ctx.fillStyle = '#ff7b93';
+          ctx.fillRect(0, 0, width, height);
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+      function loop(ts) {
+        if (state !== 'playing' && state !== 'gameover') return;
+        if (!lastTs) lastTs = ts;
+        const dt = Math.min(0.033, (ts - lastTs) / 1000);
+        lastTs = ts;
+        if (state === 'playing') updateEntities(dt);
+        render(dt);
+        updateHud();
+        if (state === 'playing' || state === 'gameover') requestAnimationFrame(loop);
+      }
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+        if (e.key === 'Escape') {
+          if (state === 'playing') pauseGame();
+          else if (state === 'paused') {
+            overlay.style.display = 'none';
+            overlay.innerHTML = '';
+            state = 'playing';
+            lastTs = 0;
+            requestAnimationFrame(loop);
+          }
+        }
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (state === 'idle' || state === 'ended') startGame();
+          else if (state === 'paused') {
+            overlay.style.display = 'none';
+            overlay.innerHTML = '';
+            state = 'playing';
+            lastTs = 0;
+            requestAnimationFrame(loop);
+          }
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+      });
+
+      const pointerToX = (e) => {
+        const rect = arena.getBoundingClientRect();
+        const x = ('touches' in e ? e.touches[0].clientX : e.clientX) - rect.left;
+        return clamp(x, 34, rect.width - 34);
+      };
+      arena.addEventListener('pointerdown', (e) => {
+        pointerActive = true;
+        playerTargetX = pointerToX(e);
+        if (state === 'idle') startGame();
+      });
+      arena.addEventListener('pointermove', (e) => {
+        if (!pointerActive && e.pointerType !== 'mouse') return;
+        if (state === 'playing' || state === 'idle' || state === 'paused') playerTargetX = pointerToX(e);
+      });
+      window.addEventListener('pointerup', () => { pointerActive = false; });
+      arena.addEventListener('touchstart', (e) => {
+        pointerActive = true;
+        playerTargetX = pointerToX(e);
+        if (state === 'idle') startGame();
+      }, { passive: true });
+      arena.addEventListener('touchmove', (e) => {
+        if (state === 'playing' || state === 'idle' || state === 'paused') playerTargetX = pointerToX(e);
+      }, { passive: true });
+      window.addEventListener('resize', resize);
+
+      startBtn.addEventListener('click', startGame);
+      resetBestBtn.addEventListener('click', () => { saveBest(0); showToast('최고 기록을 초기화했습니다.'); });
+
+      function boot() {
+        resize();
+        updateHud();
+        showToast('Enter 또는 시작 버튼으로 출발하세요.');
+        ctx.clearRect(0, 0, width, height);
+        render(0);
+      }
+      boot();
+    })();
+  </script>
+</body>
+</html>
