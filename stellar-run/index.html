@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stellar Run</title>
+  <style>
+    :root{
+      --bg1:#050816; --bg2:#0d1634; --panel:rgba(10,14,28,.78); --text:#f4f7ff;
+      --muted:#a9b6e3; --cyan:#7cf7d4; --blue:#7aa8ff; --pink:#ff7b93; --amber:#ffc86b;
+      --shadow:0 28px 90px rgba(0,0,0,.45)
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{
+      margin:0; overflow:hidden; color:var(--text);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(124,247,212,.14), transparent 24%),
+        radial-gradient(circle at 80% 20%, rgba(122,168,255,.14), transparent 26%),
+        radial-gradient(circle at 55% 85%, rgba(255,123,147,.10), transparent 30%),
+        linear-gradient(160deg,var(--bg1),var(--bg2));
+    }
+    .wrap{height:100%;display:grid;place-items:center;padding:18px}
+    .shell{
+      width:min(980px,100%); height:min(720px,calc(100vh - 36px));
+      border-radius:28px; border:1px solid rgba(255,255,255,.1);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow:var(--shadow); backdrop-filter:blur(14px); position:relative; overflow:hidden;
+    }
+    .hud{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px 14px;position:relative;z-index:4}
+    .brand h1{margin:0;font-size:clamp(22px,3vw,32px);letter-spacing:.02em}
+    .brand p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.45;max-width:44ch}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{min-width:96px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);text-align:center}
+    .label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+    .value{display:block;font-size:20px;font-weight:800}
+    .arena{position:absolute;inset:88px 16px 16px;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));touch-action:none}
+    canvas{width:100%;height:100%;display:block}
+    .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(5,8,22,.22), rgba(5,8,22,.66));z-index:5;padding:20px}
+    .card{width:min(560px,100%);padding:30px 28px;border-radius:26px;background:var(--panel);border:1px solid rgba(255,255,255,.1);box-shadow:var(--shadow);text-align:center}
+    .card h2{margin:0 0 10px;font-size:clamp(30px,4vw,46px)}
+    .card p{margin:0 0 18px;color:var(--muted);line-height:1.6}
+    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+    .btn{border:0;border-radius:999px;padding:12px 18px;font-weight:800;cursor:pointer;color:#08111c;background:linear-gradient(135deg,var(--cyan),#d7fff4);box-shadow:0 14px 32px rgba(124,247,212,.18)}
+    .btn.secondary{color:var(--text);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);box-shadow:none}
+    .toast{position:absolute;left:50%;top:92px;transform:translateX(-50%);z-index:6;padding:10px 14px;border-radius:999px;font-size:13px;color:var(--text);background:rgba(10,14,28,.82);border:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .22s ease;white-space:nowrap;pointer-events:none}
+    .toast.show{opacity:1}
+    .stageBanner{position:absolute;left:50%;top:56px;transform:translateX(-50%);z-index:6;padding:8px 14px;border-radius:999px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.8);background:rgba(10,14,28,.64);border:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .25s ease}
+    .stageBanner.show{opacity:1}
+    .touch-controls{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:10px;z-index:5;pointer-events:auto}
+    .ctrl{min-width:88px;padding:14px 16px;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(10,14,28,.72);color:var(--text);font-weight:800;letter-spacing:.02em;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+    .ctrl.pulse{min-width:120px;background:linear-gradient(135deg, rgba(124,247,212,.20), rgba(122,168,255,.18));}
+    .hint{position:absolute;left:20px;bottom:16px;z-index:4;color:var(--muted);font-size:13px;user-select:none;max-width:70ch}
+    .hint .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--cyan);margin:0 6px 2px 0;box-shadow:0 0 12px rgba(124,247,212,.65)}
+    @media (max-width:700px){.shell{height:calc(100vh - 12px);border-radius:20px}.arena{inset:86px 10px 12px}.hud{padding:14px 14px 10px}.pill{min-width:90px}.value{font-size:18px}.brand p{max-width:32ch}.hint{left:14px;right:14px;font-size:12px}.touch-controls{bottom:12px;gap:8px}.ctrl{min-width:78px;padding:13px 14px}.ctrl.pulse{min-width:102px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="shell">
+      <header class="hud">
+        <div class="brand">
+          <h1>Stellar Run</h1>
+          <p>모바일 우주 생존 러너. 레인을 바꾸고, 펄스를 터뜨리고, 4단계를 클리어하세요.</p>
+        </div>
+        <div class="stats" aria-live="polite">
+          <div class="pill"><span class="label">점수</span><span id="score" class="value">0</span></div>
+          <div class="pill"><span class="label">실드</span><span id="shield" class="value">3</span></div>
+          <div class="pill"><span class="label">스테이지</span><span id="stage" class="value">1/4</span></div>
+          <div class="pill"><span class="label">남은 시간</span><span id="time" class="value">24.0</span></div>
+        </div>
+      </header>
+
+      <section class="arena" id="arena">
+        <canvas id="c"></canvas>
+        <div class="stageBanner" id="stageBanner"></div>
+        <div class="toast" id="toast"></div>
+        <div class="overlay" id="overlay">
+          <div class="card">
+            <h2>Stellar Run</h2>
+            <p>
+              5개 레인을 오가며 레이저, 드론, 소행성, 폭탄을 피하는 모바일 우주 생존 게임입니다.<br>
+              펄스를 잘 쓰면 길을 열 수 있고, 파워업을 먹으면 실드가 회복됩니다.
+            </p>
+            <div class="actions">
+              <button class="btn" id="startBtn">시작</button>
+              <button class="btn secondary" id="resetBestBtn">기록 초기화</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="touch-controls" aria-label="mobile controls">
+          <button class="ctrl" id="leftBtn">◀</button>
+          <button class="ctrl pulse" id="pulseBtn">PULSE</button>
+          <button class="ctrl" id="rightBtn">▶</button>
+        </div>
+        <div class="hint"><span class="dot"></span>드래그/탭으로 레인 이동 · 좌/우 버튼으로 이동 · PULSE로 주변 위험 제거 · Space로 펄스</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const arena = document.getElementById('arena');
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d');
+      const overlay = document.getElementById('overlay');
+      const startBtn = document.getElementById('startBtn');
+      const resetBestBtn = document.getElementById('resetBestBtn');
+      const leftBtn = document.getElementById('leftBtn');
+      const rightBtn = document.getElementById('rightBtn');
+      const pulseBtn = document.getElementById('pulseBtn');
+      const scoreEl = document.getElementById('score');
+      const shieldEl = document.getElementById('shield');
+      const stageEl = document.getElementById('stage');
+      const timeEl = document.getElementById('time');
+      const toast = document.getElementById('toast');
+      const stageBanner = document.getElementById('stageBanner');
+
+      const STORAGE_KEY = 'stellarRunBest';
+      const lanes = 5;
+      const stages = [
+        { name: 'Departure', duration: 24, spawn: 0.95, speed: 150, bg1: '#050816', bg2: '#10224a', accent: '#7cf7d4', mix: { asteroid: .60, drone: .14, mine: .14, shard: .12 } },
+        { name: 'Ion Belt', duration: 26, spawn: 0.80, speed: 185, bg1: '#050918', bg2: '#162955', accent: '#7aa8ff', mix: { asteroid: .50, drone: .22, mine: .16, shard: .12 } },
+        { name: 'Drone Chase', duration: 28, spawn: 0.66, speed: 225, bg1: '#050810', bg2: '#24164a', accent: '#ff7b93', mix: { asteroid: .40, drone: .34, mine: .16, shard: .10 } },
+        { name: 'Singularity', duration: 32, spawn: 0.54, speed: 270, bg1: '#04060f', bg2: '#2a1a2e', accent: '#ffc86b', mix: { asteroid: .34, drone: .36, mine: .20, shard: .10 } },
+      ];
+
+      let audioCtx = null;
+      let W = 0, H = 0, dpr = 1, last = 0;
+      let state = 'menu';
+      let stageIndex = 0;
+      let stageTime = stages[0].duration;
+      let transitionTimer = 0;
+      let score = 0;
+      let best = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      let shield = 3;
+      let pulseCooldown = 0;
+      let pulseActive = 0;
+      let shake = 0;
+      let flash = 0;
+      let scroll = 0;
+      let targetLane = 2;
+      let playerLane = 2;
+      let playerX = 0;
+      let playerY = 0;
+      let dragging = false;
+      let dragStartX = 0;
+      let dragStartLane = 2;
+      let laneXs = [];
+      let hazards = [];
+      let pickups = [];
+      let sparks = [];
+      let pulseRings = [];
+      let stars = [];
+      let nebula = [];
+      const keys = { left: false, right: false };
+
+      const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+      const rand = (a, b) => a + Math.random() * (b - a);
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const ease = (t) => 1 - Math.pow(0.0008, t);
+
+      function saveBest(v) { best = v; localStorage.setItem(STORAGE_KEY, String(v)); }
+      function showToast(text, ms = 1100) {
+        toast.textContent = text;
+        toast.classList.add('show');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => toast.classList.remove('show'), ms);
+      }
+      function setStageBanner(text, ms = 1200) {
+        stageBanner.textContent = text;
+        stageBanner.classList.add('show');
+        clearTimeout(setStageBanner._t);
+        setStageBanner._t = setTimeout(() => stageBanner.classList.remove('show'), ms);
+      }
+      function updateHud() {
+        scoreEl.textContent = Math.floor(score);
+        shieldEl.textContent = shield;
+        stageEl.textContent = `${stageIndex + 1}/4`;
+        timeEl.textContent = stageTime.toFixed(1);
+      }
+
+      function resumeAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+      }
+      function tone(freq, dur, type = 'sine', gain = 0.04, bend = null) {
+        if (!audioCtx) return;
+        const t = audioCtx.currentTime;
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, t);
+        if (bend) o.frequency.exponentialRampToValueAtTime(bend, t + dur);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(t);
+        o.stop(t + dur + 0.02);
+      }
+      function chime(notes, type = 'triangle', gain = 0.03, gap = 0.08) {
+        notes.forEach((n, i) => setTimeout(() => tone(n, 0.12, type, gain, n * 1.1), i * gap * 1000));
+      }
+      const sfx = {
+        start() { chime([220, 330, 440], 'sine', 0.045, 0.09); },
+        collect() { chime([740, 980], 'triangle', 0.03, 0.06); },
+        hit() { tone(130, 0.15, 'sawtooth', 0.06, 60); tone(70, 0.18, 'square', 0.03); },
+        pulse() { tone(180, 0.16, 'sine', 0.05, 90); tone(90, 0.22, 'sine', 0.02); },
+        level() { chime([330, 440, 660, 880], 'triangle', 0.03, 0.07); },
+        win() { chime([330, 440, 554, 660, 880], 'sine', 0.03, 0.08); },
+      };
+
+      function makeStars() {
+        stars = Array.from({ length: 130 }, () => ({ x: Math.random() * W, y: Math.random() * H, r: rand(0.6, 2.2), s: rand(0.2, 1) }));
+        nebula = [
+          { x: W * 0.18, y: H * 0.20, r: Math.min(W, H) * 0.28, c: 'rgba(124,247,212,.12)' },
+          { x: W * 0.82, y: H * 0.18, r: Math.min(W, H) * 0.24, c: 'rgba(122,168,255,.10)' },
+          { x: W * 0.50, y: H * 0.84, r: Math.min(W, H) * 0.26, c: 'rgba(255,123,147,.08)' },
+        ];
+      }
+      function resize() {
+        const r = arena.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = Math.max(1, Math.floor(r.width));
+        H = Math.max(1, Math.floor(r.height));
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        laneXs = Array.from({ length: lanes }, (_, i) => W * (0.14 + (0.72 / (lanes - 1)) * i));
+        playerY = H * 0.82;
+        if (!stars.length) makeStars();
+        if (!playerX) {
+          playerLane = 2;
+          targetLane = 2;
+          playerX = laneXs[playerLane];
+        }
+      }
+
+      function resetWorld() {
+        hazards = [];
+        pickups = [];
+        sparks = [];
+        pulseRings = [];
+        score = 0;
+        shield = 3;
+        pulseCooldown = 0;
+        pulseActive = 0;
+        shake = 0;
+        flash = 0;
+        scroll = 0;
+        targetLane = 2;
+        playerLane = 2;
+        playerX = laneXs[2] || W * 0.5;
+        stageIndex = 0;
+        stageTime = stages[0].duration;
+        transitionTimer = 0;
+        updateHud();
+      }
+      function setStage(i, announce = true) {
+        stageIndex = i;
+        stageTime = stages[i].duration;
+        transitionTimer = 1.25;
+        stageBanner.textContent = `STAGE ${i + 1} · ${stages[i].name}`;
+        stageBanner.classList.add('show');
+        if (announce) showToast(`${stages[i].name} 시작`, 1000);
+        setTimeout(() => stageBanner.classList.remove('show'), 1200);
+        sfx.level();
+      }
+      function startGame() {
+        resumeAudio();
+        resetWorld();
+        setStage(0, false);
+        state = 'playing';
+        overlay.style.display = 'none';
+        overlay.innerHTML = '';
+        showToast('드래그하거나 버튼으로 레인을 바꾸세요.');
+        sfx.start();
+      }
+      function pauseGame() {
+        if (state !== 'playing') return;
+        state = 'paused';
+        overlay.innerHTML = `
+          <div class="card">
+            <h2>일시정지</h2>
+            <p>잠깐 숨을 고르고 다시 달릴 수 있어요.</p>
+            <div class="actions">
+              <button class="btn" id="resumeBtn">계속</button>
+              <button class="btn secondary" id="restartBtn2">처음부터</button>
+            </div>
+          </div>`;
+        overlay.style.display = 'grid';
+        document.getElementById('resumeBtn').onclick = () => {
+          overlay.style.display = 'none';
+          overlay.innerHTML = '';
+          state = 'playing';
+          last = 0;
+          resumeAudio();
+          sfx.start();
+        };
+        document.getElementById('restartBtn2').onclick = startGame;
+      }
+      function gameOver() {
+        state = 'gameover';
+        if (score > best) saveBest(Math.floor(score));
+        overlay.innerHTML = `
+          <div class="card">
+            <h2>게임 오버</h2>
+            <p>최종 점수 <strong>${Math.floor(score)}</strong>점 · 생존 시간 ${Math.floor((stages.slice(0, stageIndex).reduce((a, b) => a + b.duration, 0) + (stages[stageIndex].duration - stageTime))) }초</p>
+            <div class="actions">
+              <button class="btn" id="restartBtn">다시 하기</button>
+              <button class="btn secondary" id="resetBestBtn2">기록 초기화</button>
+            </div>
+          </div>`;
+        overlay.style.display = 'grid';
+        document.getElementById('restartBtn').onclick = startGame;
+        document.getElementById('resetBestBtn2').onclick = () => { saveBest(0); showToast('최고 기록을 초기화했습니다.'); updateHud(); };
+        sfx.hit();
+      }
+      function victory() {
+        state = 'victory';
+        if (score > best) saveBest(Math.floor(score));
+        overlay.innerHTML = `
+          <div class="card">
+            <h2>미션 성공!</h2>
+            <p>4개의 스테이지를 모두 클리어했습니다. 최종 점수 <strong>${Math.floor(score)}</strong>점</p>
+            <div class="actions">
+              <button class="btn" id="restartBtn">한 번 더</button>
+              <button class="btn secondary" id="resetBestBtn2">기록 초기화</button>
+            </div>
+          </div>`;
+        overlay.style.display = 'grid';
+        document.getElementById('restartBtn').onclick = startGame;
+        document.getElementById('resetBestBtn2').onclick = () => { saveBest(0); showToast('최고 기록을 초기화했습니다.'); updateHud(); };
+        sfx.win();
+      }
+      function completeStage() {
+        if (stageIndex >= stages.length - 1) { victory(); return; }
+        state = 'transition';
+        transitionTimer = 1.45;
+        overlay.innerHTML = `
+          <div class="card">
+            <h2>스테이지 클리어</h2>
+            <p>${stages[stageIndex].name} 완료! 다음 스테이지로 갈수록 적이 더 빨라집니다.</p>
+          </div>`;
+        overlay.style.display = 'grid';
+        stageBanner.textContent = `STAGE ${stageIndex + 1} CLEAR`;
+        stageBanner.classList.add('show');
+        setTimeout(() => stageBanner.classList.remove('show'), 900);
+        sfx.level();
+      }
+
+      function laneToX(lane) { return laneXs[clamp(lane, 0, lanes - 1)] || W * 0.5; }
+      function chooseLane() { return Math.floor(Math.random() * lanes); }
+      function nearestLane(x) {
+        let bestIdx = 0, bestDist = Infinity;
+        for (let i = 0; i < laneXs.length; i++) {
+          const d = Math.abs(x - laneXs[i]);
+          if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+        return bestIdx;
+      }
+      function spawnHazard(kind, lane, opts = {}) {
+        const base = stages[stageIndex];
+        const o = {
+          kind,
+          lane,
+          y: -40 - rand(0, 180),
+          speed: base.speed * (opts.mul || 1) + rand(-10, 35),
+          wobble: rand(0, Math.PI * 2),
+          spin: rand(-3, 3),
+          dead: false,
+          radius: kind === 'asteroid' ? rand(20, 34) : kind === 'drone' ? rand(17, 24) : kind === 'mine' ? rand(16, 20) : rand(10, 15),
+          points: kind === 'asteroid' ? 14 : 8,
+          shape: kind === 'asteroid' ? Array.from({ length: 14 }, () => rand(.72, 1.08)) : null,
+        };
+        hazards.push(o);
+      }
+      function spawnPickup(lane) {
+        pickups.push({ lane, y: -50 - rand(0, 140), speed: stages[stageIndex].speed * 0.95, phase: rand(0, Math.PI * 2), dead: false });
+      }
+      function spawnPattern() {
+        const base = stages[stageIndex];
+        const r = Math.random();
+        const kindRoll = Math.random();
+        const kind = kindRoll < base.mix.asteroid ? 'asteroid' : kindRoll < base.mix.asteroid + base.mix.drone ? 'drone' : kindRoll < base.mix.asteroid + base.mix.drone + base.mix.mine ? 'mine' : 'shard';
+        if (r < 0.34) {
+          spawnHazard(kind, chooseLane());
+        } else if (r < 0.58) {
+          const a = chooseLane();
+          const b = clamp(a + (Math.random() < .5 ? 1 : -1), 0, lanes - 1);
+          spawnHazard(kind, a);
+          spawnHazard(kind === 'shard' ? 'asteroid' : 'shard', b, { mul: 0.92 });
+        } else if (r < 0.78) {
+          const gap = chooseLane();
+          for (let i = 0; i < lanes; i++) if (i !== gap) spawnHazard(i % 2 ? 'asteroid' : 'mine', i, { mul: 0.88 });
+        } else if (r < 0.92) {
+          const center = chooseLane();
+          [center - 1, center, center + 1].forEach(l => { if (l >= 0 && l < lanes) spawnHazard('drone', l, { mul: 0.98 }); });
+        } else {
+          const lane = chooseLane();
+          spawnHazard('drone', lane, { mul: 1.05 });
+          spawnHazard('shard', clamp(lane + 1, 0, lanes - 1), { mul: 1.0 });
+          spawnHazard('shard', clamp(lane - 1, 0, lanes - 1), { mul: 1.0 });
+        }
+        if (Math.random() < 0.42 || shield < 3) spawnPickup(chooseLane());
+      }
+
+      function pulse() {
+        if (state !== 'playing' || pulseCooldown > 0) return;
+        pulseCooldown = 5.5;
+        pulseActive = 0.55;
+        pulseRings.push({ x: playerX, y: playerY, r: 12, life: 0.6 });
+        const before = hazards.length;
+        hazards = hazards.filter(h => {
+          const inLane = Math.abs(h.lane - playerLane) <= 1;
+          const inRange = h.y > playerY - 150 && h.y < playerY + 120;
+          if (inLane && inRange) {
+            burst(laneToX(h.lane), h.y, h.kind === 'mine' ? '#ff7b93' : '#7cf7d4', 12, 210);
+            score += 12;
+            return false;
+          }
+          return true;
+        });
+        if (before !== hazards.length) showToast('PULSE!');
+        sfx.pulse();
+      }
+      function moveLane(dir) {
+        if (state !== 'playing' && state !== 'menu') return;
+        targetLane = clamp(targetLane + dir, 0, lanes - 1);
+        playerLane = targetLane;
+        if (state === 'menu') return;
+        showToast(dir < 0 ? '왼쪽' : '오른쪽', 350);
+      }
+      function burst(x, y, color = '#7cf7d4', amount = 14, force = 180) {
+        for (let i = 0; i < amount; i++) {
+          const a = Math.random() * Math.PI * 2;
+          sparks.push({ x, y, vx: Math.cos(a) * rand(.6, 1.5) * force, vy: Math.sin(a) * rand(.6, 1.5) * force, life: rand(.35, .9), r: rand(1.2, 3.4), color });
+        }
+      }
+
+      function drawBackground(dt) {
+        const theme = stages[stageIndex] || stages[0];
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, theme.bg1);
+        grad.addColorStop(0.5, theme.bg2);
+        grad.addColorStop(1, '#050816');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        for (const n of nebula) {
+          const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+          g.addColorStop(0, n.c);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const s of stars) {
+          s.y += (18 + s.s * 58) * dt;
+          s.x += Math.sin((s.y + s.x) * 0.0018) * 0.18 * s.s;
+          if (s.y > H + 4) { s.y = -4; s.x = Math.random() * W; }
+          ctx.fillStyle = `rgba(255,255,255,${0.26 + s.s * 0.68})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r * (0.8 + s.s * 0.7), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(122,168,255,.12)';
+        ctx.lineWidth = 1;
+        const shift = (scroll * 0.7) % 60;
+        for (let y = -60; y < H + 60; y += 60) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + shift);
+          ctx.lineTo(W, y + shift);
+          ctx.stroke();
+        }
+        for (let i = 0; i < laneXs.length; i++) {
+          const x = laneXs[i];
+          ctx.strokeStyle = i === playerLane ? 'rgba(124,247,212,.20)' : 'rgba(122,168,255,.10)';
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, H);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      function drawShip() {
+        const x = playerX;
+        const y = playerY;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.shadowColor = pulseActive > 0 ? 'rgba(124,247,212,.65)' : 'rgba(124,247,212,.45)';
+        ctx.shadowBlur = 20;
+        const body = ctx.createLinearGradient(-18, -24, 18, 24);
+        body.addColorStop(0, '#ffffff');
+        body.addColorStop(0.5, '#cfe9ff');
+        body.addColorStop(1, '#7aa8ff');
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.moveTo(0, -26);
+        ctx.lineTo(18, 8);
+        ctx.lineTo(0, 18);
+        ctx.lineTo(-18, 8);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#0d1634';
+        ctx.beginPath();
+        ctx.moveTo(0, -18);
+        ctx.lineTo(10, 4);
+        ctx.lineTo(0, 10);
+        ctx.lineTo(-10, 4);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = pulseActive > 0 ? 'rgba(124,247,212,.96)' : 'rgba(255,255,255,.94)';
+        ctx.beginPath();
+        ctx.arc(0, 6, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(122,168,255,.88)';
+        ctx.fillRect(-5, 10, 10, 16);
+        ctx.fillStyle = 'rgba(255,255,255,.8)';
+        ctx.fillRect(-2, 14, 4, 8);
+        ctx.restore();
+      }
+      function drawHazard(h, dt) {
+        const x = laneToX(h.lane) + Math.sin(h.wobble + h.y * 0.01) * (h.kind === 'drone' ? 9 : 4);
+        const y = h.y;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((h.spin + h.wobble) * 0.1 + y * 0.003);
+        if (h.kind === 'asteroid') {
+          ctx.shadowColor = 'rgba(255,255,255,.10)';
+          ctx.shadowBlur = 8;
+          ctx.fillStyle = '#9aa8c9';
+          ctx.beginPath();
+          for (let i = 0; i < h.points; i++) {
+            const a = (i / h.points) * Math.PI * 2;
+            const rr = h.radius * (h.shape[i] || 1);
+            const px = Math.cos(a) * rr;
+            const py = Math.sin(a) * rr;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.25)';
+          ctx.beginPath();
+          ctx.arc(-h.radius * .18, -h.radius * .08, h.radius * .26, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (h.kind === 'drone') {
+          ctx.shadowColor = 'rgba(122,168,255,.4)';
+          ctx.shadowBlur = 14;
+          ctx.fillStyle = '#7aa8ff';
+          ctx.beginPath();
+          ctx.arc(0, 0, h.radius * .95, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#dff8ff';
+          ctx.beginPath();
+          ctx.arc(0, 0, h.radius * .28, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.8)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(-h.radius * 1.2, 0); ctx.lineTo(-h.radius * 1.55, 0);
+          ctx.moveTo(h.radius * 1.2, 0); ctx.lineTo(h.radius * 1.55, 0);
+          ctx.stroke();
+        } else if (h.kind === 'mine') {
+          ctx.shadowColor = 'rgba(255,123,147,.45)';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#ff7b93';
+          ctx.beginPath();
+          ctx.arc(0, 0, h.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.82)';
+          ctx.beginPath();
+          ctx.arc(0, 0, h.radius * .28, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.shadowColor = 'rgba(255,200,107,.45)';
+          ctx.shadowBlur = 10;
+          ctx.fillStyle = '#ffc86b';
+          ctx.beginPath();
+          ctx.moveTo(0, -h.radius);
+          ctx.lineTo(h.radius * .8, 0);
+          ctx.lineTo(0, h.radius);
+          ctx.lineTo(-h.radius * .8, 0);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      function drawPickup(p, dt) {
+        const x = laneToX(p.lane);
+        const y = p.y;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.shadowColor = 'rgba(124,247,212,.55)';
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = '#7cf7d4';
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      function drawSparks(dt) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const s = sparks[i];
+          s.life -= dt;
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+          s.vx *= 0.985;
+          s.vy *= 0.985;
+          s.vy += 180 * dt;
+          if (s.life <= 0) { sparks.splice(i, 1); continue; }
+          ctx.globalAlpha = clamp(s.life / 0.9, 0, 1);
+          ctx.fillStyle = s.color;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+      function drawPulse(dt) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = pulseRings.length - 1; i >= 0; i--) {
+          const r = pulseRings[i];
+          r.life -= dt;
+          r.r += dt * 360;
+          if (r.life <= 0) { pulseRings.splice(i, 1); continue; }
+          ctx.globalAlpha = clamp(r.life / 0.6, 0, 1) * 0.7;
+          const g = ctx.createRadialGradient(r.x, r.y, r.r * .3, r.x, r.y, r.r);
+          g.addColorStop(0, 'rgba(124,247,212,.32)');
+          g.addColorStop(0.5, 'rgba(122,168,255,.18)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+
+      function hit() {
+        if (pulseActive > 0) return;
+        shield -= 1;
+        flash = 1;
+        shake = 12;
+        burst(playerX, playerY, '#ff7b93', 20, 240);
+        sfx.hit();
+        if (shield <= 0) gameOver();
+      }
+      function collect() {
+        shield = Math.min(3, shield + 1);
+        score += 20;
+        burst(playerX, playerY - 20, '#7cf7d4', 12, 160);
+        sfx.collect();
+      }
+
+      function update(dt) {
+        if (flash > 0) flash = Math.max(0, flash - dt * 3);
+        if (shake > 0) shake = Math.max(0, shake - dt * 18);
+        if (pulseCooldown > 0) pulseCooldown = Math.max(0, pulseCooldown - dt);
+        if (pulseActive > 0) pulseActive = Math.max(0, pulseActive - dt);
+        scroll += dt * (170 + stageIndex * 40);
+
+        if (state === 'menu') return;
+
+        if (state === 'transition') {
+          transitionTimer -= dt;
+          if (transitionTimer <= 0) {
+            overlay.style.display = 'none';
+            overlay.innerHTML = '';
+            setStage(stageIndex + 1, false);
+            state = 'playing';
+          }
+          return;
+        }
+
+        if (state !== 'playing') return;
+
+        stageTime -= dt;
+        score += dt * (10 + stageIndex * 3);
+        const base = stages[stageIndex];
+        const spawnBase = Math.max(0.28, base.spawn - score / 1200);
+        spawnTimer -= dt;
+        if (spawnTimer <= 0) {
+          spawnPattern();
+          spawnTimer = spawnBase + rand(-0.15, 0.18);
+        }
+        if (stageTime <= 0) { completeStage(); return; }
+
+        const moveIntent = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+        if (moveIntent !== 0) targetLane = clamp(targetLane + moveIntent, 0, lanes - 1);
+        playerLane = clamp(targetLane, 0, lanes - 1);
+        playerX = lerp(playerX, laneToX(playerLane), ease(dt));
+
+        for (let i = hazards.length - 1; i >= 0; i--) {
+          const h = hazards[i];
+          h.y += h.speed * dt;
+          if (h.kind === 'drone') h.wobble += dt * 2.2;
+          if (h.kind === 'shard') h.wobble += dt * 4.5;
+          const px = playerX;
+          const py = playerY;
+          const x = laneToX(h.lane);
+          const distance = Math.abs(h.y - py);
+          const sameLane = h.lane === playerLane;
+          const withinPulse = pulseActive > 0 && Math.abs(h.lane - playerLane) <= 1 && h.y > py - 150 && h.y < py + 120;
+          if (withinPulse) {
+            burst(x, h.y, h.kind === 'mine' ? '#ff7b93' : '#7cf7d4', 10, 190);
+            score += 8;
+            hazards.splice(i, 1);
+            continue;
+          }
+          if (sameLane && distance < h.radius + 18) {
+            hazards.splice(i, 1);
+            hit();
+            continue;
+          }
+          if (h.y > H + 48) {
+            hazards.splice(i, 1);
+            score += 5 + stageIndex;
+            if (Math.random() < 0.28) burst(x, H - 20, '#7aa8ff', 4, 60);
+            continue;
+          }
+        }
+
+        for (let i = pickups.length - 1; i >= 0; i--) {
+          const p = pickups[i];
+          p.y += p.speed * dt;
+          p.phase += dt * 4;
+          if (p.y > H + 40) { pickups.splice(i, 1); continue; }
+          if (p.lane === playerLane && Math.abs(p.y - playerY) < 22) {
+            pickups.splice(i, 1);
+            collect();
+          }
+        }
+
+      }
+
+      function render(dt) {
+        if (shake > 0) ctx.save();
+        if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
+        drawBackground(dt);
+        drawPulse(dt);
+        for (const p of pickups) drawPickup(p, dt);
+        for (const h of hazards) drawHazard(h, dt);
+        drawSparks(dt);
+        drawShip();
+        if (flash > 0) {
+          ctx.save();
+          ctx.globalAlpha = flash * 0.25;
+          ctx.fillStyle = '#ff7b93';
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+        }
+        if (shake > 0) ctx.restore();
+      }
+
+      function loop(ts) {
+        if (!last) last = ts;
+        const dt = Math.min(0.033, (ts - last) / 1000);
+        last = ts;
+        update(dt);
+        render(dt);
+        updateHud();
+        requestAnimationFrame(loop);
+      }
+
+      function pointerLane(clientX) { return nearestLane(clientX); }
+      arena.addEventListener('pointerdown', (e) => {
+        resumeAudio();
+        dragging = true;
+        dragStartX = e.clientX;
+        dragStartLane = targetLane;
+        const lane = pointerLane(e.clientX - arena.getBoundingClientRect().left);
+        targetLane = lane;
+        playerLane = lane;
+        if (state === 'menu') startGame();
+      });
+      arena.addEventListener('pointermove', (e) => {
+        if (!dragging && e.pointerType !== 'mouse') return;
+        const lane = pointerLane(e.clientX - arena.getBoundingClientRect().left);
+        if (state === 'playing' || state === 'menu' || state === 'paused') {
+          targetLane = lane;
+          playerLane = lane;
+        }
+      });
+      window.addEventListener('pointerup', () => { dragging = false; });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { keys.left = true; }
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { keys.right = true; }
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (state === 'menu' || state === 'gameover' || state === 'victory') startGame();
+          else if (state === 'playing') pulse();
+          else if (state === 'paused') {
+            overlay.style.display = 'none'; overlay.innerHTML = ''; state = 'playing'; last = 0; resumeAudio();
+          }
+        }
+        if (e.key === 'Escape') {
+          if (state === 'playing') pauseGame();
+          else if (state === 'paused') { overlay.style.display = 'none'; overlay.innerHTML = ''; state = 'playing'; last = 0; resumeAudio(); }
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+      });
+
+      leftBtn.addEventListener('click', () => { resumeAudio(); if (state === 'menu') startGame(); moveLane(-1); });
+      rightBtn.addEventListener('click', () => { resumeAudio(); if (state === 'menu') startGame(); moveLane(1); });
+      pulseBtn.addEventListener('click', () => { resumeAudio(); if (state === 'menu') startGame(); pulse(); });
+      startBtn.addEventListener('click', startGame);
+      resetBestBtn.addEventListener('click', () => { saveBest(0); showToast('최고 기록을 초기화했습니다.'); updateHud(); });
+      arena.addEventListener('dblclick', pulse);
+      window.addEventListener('resize', resize);
+
+      resize();
+      updateHud();
+      showToast('시작 버튼을 누르면 바로 출발합니다.');
+      loop();
+    })();
+  </script>
+</body>
+</html>
